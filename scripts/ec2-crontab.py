@@ -149,15 +149,24 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
         # continue
 
     output = {}
-    '''
-    dry_run = True
     if instances_to_start:
         output['to_start'] = instances_to_start
         try:
             result = ec2.instances.filter(
-             InstanceIds = instances_to_start,
-             DryRun = dry_run,
-            ).start()
+                #InstanceIds = instances_to_start,
+                Filters = [
+                    {
+                        'Name': 'tag-key',
+                        'Values': ['auto:start'],
+                    },
+                    {
+                        'Name': 'instance-id',
+                        'Values': instances_to_start,
+                    },
+                ],
+                DryRun = dry_run,
+            )
+            #.start()
         except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 logging.debug(e.response['Error'])
@@ -169,16 +178,25 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
         output['to_stop'] = instances_to_stop
         try:
             result = ec2.instances.filter(
-             InstanceIds = instances_to_stop,
-             DryRun = dry_run,
-            ).stop()
+                Filters = [
+                    {
+                        'Name': 'tag-key',
+                        'Values': ['auto:stop'],
+                    },
+                    {
+                        'Name': 'instance-id',
+                        'Values': instances_to_stop,
+                    },
+                ],
+                DryRun = dry_run,
+            )
+            #.stop()
         except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 logging.debug(e.response['Error'])
             else:
                 logging.error(e)
             output['stop_result'] = e.response['Error'].get('Message')
-    '''
 
     return json.dumps(output)
 

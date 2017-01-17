@@ -153,7 +153,6 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
         output['to_start'] = instances_to_start
         try:
             result = ec2.instances.filter(
-                #InstanceIds = instances_to_start,
                 Filters = [
                     {
                         'Name': 'tag-key',
@@ -165,8 +164,7 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
                     },
                 ],
                 DryRun = dry_run,
-            )
-            #.start()
+            ).start()
         except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 logging.debug(e.response['Error'])
@@ -189,8 +187,7 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
                     },
                 ],
                 DryRun = dry_run,
-            )
-            #.stop()
+            ).stop()
         except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 logging.debug(e.response['Error'])

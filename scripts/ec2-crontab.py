@@ -164,7 +164,8 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
                     },
                 ],
                 DryRun = dry_run,
-            ).start()
+            )
+            #.start()
         except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 logging.debug(e.response['Error'])
@@ -187,7 +188,8 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
                     },
                 ],
                 DryRun = dry_run,
-            ).stop()
+            )
+            #.stop()
         except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 logging.debug(e.response['Error'])

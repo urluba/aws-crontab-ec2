@@ -3,17 +3,20 @@
 
 from __future__ import unicode_literals
 
+from datetime import datetime
+from botocore.exceptions import ProfileNotFound, ClientError
+
+from croniter import croniter
+
+import os
 import argparse
 import json
 import logging
 import boto3
-from botocore.exceptions import ProfileNotFound, ClientError
-import os
-from croniter import croniter
-from datetime import datetime
+
 
 def _init_aws_session(boto_profile='dev'):
-    """Return a session to query AWS API
+    """ Return a session to query AWS API
 
     :param boto_profile: name of the session profile
     :type boto_profile: string
@@ -22,13 +25,9 @@ def _init_aws_session(boto_profile='dev'):
     """
     # Let's go
     try:
-        if boto_profile:
-            session = boto3.Session(profile_name=boto_profile)
-        else:
-            session = boto3.Session()
-    except ProfileNotFound as e:
-        logging.error(e)
-        print e
+        session = boto3.Session(profile_name=boto_profile)
+    except ProfileNotFound as exception:
+        logging.error(exception)
         raise SystemExit, 1
 
     return session
@@ -44,12 +43,12 @@ def tag_to_date(value):
     if value == 'now':
         return datetime.now()
 
-    logging.error("Unable to transcode [%s] to a date!"
-        " Event set in the futur." % value)
-        
+    logging.warning("Unable to transcode [%s] to a date!"
+                    " Event set in the futur." % value)
+
     return datetime.date(datetime.max)
 
-def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
+def ec2_apply_cron(profile_name=False, id=False, dry_run=True):
     ''' Return the list of all instances matching filters
 
     :param id: Run only on a specific instances
@@ -70,7 +69,7 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
         },
         {
             'Name': 'instance-state-name',
-            'Values': ['stopped','running'],
+            'Values': ['stopped', 'running'],
         }
     ]
 
@@ -81,7 +80,7 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
             'Values': [id],
         })
 
-    instances = ec2.instances.filter(Filters = Filters)
+    instances = ec2.instances.filter(Filters=Filters)
     instances_to_start = []
     instances_to_stop = []
 
@@ -99,7 +98,7 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
 
         if instance_state != 'stopped' and instance_state != 'running':
             logging.error("[%s] has unsupported [%s] state" %
-                (instance.id, instance_state))
+                          (instance.id, instance_state))
             continue
 
         for tag in instance.tags:
@@ -116,16 +115,16 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
 
         if instance_start_at == instance_stop_at:
             logging.error("%s is [%s] and must be up from: [%s] to [%s])!" %
-                (instance.id, instance_state,
-                instance_start_at, instance_stop_at)
-            )
+                          (instance.id, instance_state,
+                           instance_start_at, instance_stop_at)
+                         )
             continue
 
         logging.info("+ [%s] is [%s], wake at [%s]"
-            " and stop at [%s]" %
-            (instance.id, instance_state,
-            instance_start_at, instance_stop_at)
-        )
+                     " and stop at [%s]" %
+                     (instance.id, instance_state,
+                      instance_start_at, instance_stop_at)
+                    )
 
         # There is something to optimize there to avoid
         # all these calls... Build the list first and parse after ?
@@ -153,7 +152,7 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
         output['to_start'] = instances_to_start
         try:
             result = ec2.instances.filter(
-                Filters = [
+                Filters=[
                     {
                         'Name': 'tag-key',
                         'Values': ['auto:start'],
@@ -163,8 +162,9 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
                         'Values': instances_to_start,
                     },
                 ],
-                DryRun = dry_run,
-            ).start()
+                DryRun=dry_run,
+            )
+            #.start()
         except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 logging.debug(e.response['Error'])
@@ -176,7 +176,7 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
         output['to_stop'] = instances_to_stop
         try:
             result = ec2.instances.filter(
-                Filters = [
+                Filters=[
                     {
                         'Name': 'tag-key',
                         'Values': ['auto:stop'],
@@ -186,8 +186,9 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
                         'Values': instances_to_stop,
                     },
                 ],
-                DryRun = dry_run,
-            ).stop()
+                DryRun=dry_run,
+            )
+            #.stop()
         except ClientError as e:
             if e.response['Error'].get('Code') == 'DryRunOperation':
                 logging.debug(e.response['Error'])
@@ -199,7 +200,7 @@ def ec2_apply_cron(profile_name = False, id = False, dry_run = True):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description = """Start or stop an instance based on the value of
+        description="""Start or stop an instance based on the value of
         auto:start and auto:stop tags.
         !!! BEWARE TZ and local time !!!
         """
@@ -207,50 +208,52 @@ if __name__ == '__main__':
 
     parser.add_argument(
         '-p', '--profile',
-        help = 'AWS profile to use.'
+        help='AWS profile to use.'
              ' If not set or if the script is run from Ansible,'
              ' please set AWS_PROFILE. If both are specified,'
              ' the one in the cmd line is used.',
-        required = False,
-        action = 'store',
-        dest = 'profile_name',
-        default = 'dev',
+        required=False,
+        action='store',
+        dest='profile_name',
+        default='dev',
     )
 
     parser.add_argument(
         '-i', '--instance',
-        help = 'Only on specified instance',
-        required = False,
-        action = 'store',
-        dest = 'instance_id',
-        default = False,
+        help='Only on specified instance',
+        required=False,
+        action='store',
+        dest='instance_id',
+        default=False,
     )
 
-    parser.add_argument('--debug',
-        help = 'set maximum verbosity',
-        required = False,
-        action = 'store_true',
-        dest = 'debug_mode',
-        default = False,
+    parser.add_argument(
+        '--debug',
+        help='set maximum verbosity',
+        required=False,
+        action='store_true',
+        dest='debug_mode',
+        default=False,
     )
 
-    parser.add_argument('--dry-run',
-        help = 'do nothing',
-        required = False,
-        action = 'store_true',
-        dest = 'dry_run',
-        default = False,
+    parser.add_argument(
+        '--dry-run',
+        help='do nothing',
+        required=False,
+        action='store_true',
+        dest='dry_run',
+        default=False,
     )
 
-    args = parser.parse_args()
+    ARGS = parser.parse_args()
 
-    if args.debug_mode:
+    if ARGS.debug_mode:
         logging.basicConfig(level=logging.DEBUG)
 
-    if not args.profile_name:
-        args.profile_name = os.environ.get('AWS_PROFILE', False)
+    if not ARGS.profile_name:
+        ARGS.profile_name = os.environ.get('AWS_PROFILE', False)
 
-    if args.instance_id:
-        logging.info("- Looking for: %s..." % args.instance_id)
+    if ARGS.instance_id:
+        logging.info("- Looking for: %s..." % ARGS.instance_id)
 
-    print ec2_apply_cron(args.profile_name, args.instance_id)
+    print ec2_apply_cron(ARGS.profile_name, ARGS.instance_id)
